@@ -33,7 +33,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ✅ User Model
-const User = require("./models/User");
+const User = require("./src/models/User");
 
 // ✅ Routes
 app.get("/api/test", (req, res) => {

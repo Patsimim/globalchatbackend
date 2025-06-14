@@ -1,7 +1,7 @@
 // seed.js
 require("dotenv").config();
 const mongoose = require("mongoose");
-const User = require("./models/User");
+const User = require("./src/models/User");
 
 const MONGO_URI = process.env.MONGO_URI;
 

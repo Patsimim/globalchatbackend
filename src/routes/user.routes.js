@@ -1,4 +1,4 @@
-const User = require("./models/User"); // Add this at the top
+const User = require("./src/models/User"); // Add this at the top
 
 // GET users from MongoDB
 app.get("/api/users", async (req, res) => {
