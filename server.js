@@ -1,11 +1,12 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 const mongoose = require("mongoose");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+console.log("🚀 Starting server...");
 
 // ✅ Connect to MongoDB
 const MONGO_URI = process.env.MONGO_URI;
@@ -34,15 +35,11 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Import routes AFTER middleware setup
-const authRoutes = require("./src/routes/user.routes");
+console.log("✅ Middleware setup complete");
 
-// ✅ Routes
-app.use("/api/auth", authRoutes);
-
-// ✅ Basic routes
-app.get("/api/test", (req, res) => {
-  res.json({ message: "Backend connected successfully!" });
+// ✅ Basic routes FIRST (to test server is working)
+app.get("/", (req, res) => {
+  res.json({ message: "GlobalChat Backend API is running!" });
 });
 
 app.get("/api/health", (req, res) => {
@@ -53,11 +50,27 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.get("/", (req, res) => {
-  res.json({ message: "GlobalChat Backend API is running!" });
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Backend connected successfully!" });
 });
 
-// ✅ Get all users (for admin purposes - consider protecting this route)
+console.log("✅ Basic routes setup complete");
+
+// ✅ Try to import auth routes with error handling
+try {
+  console.log("🔍 Attempting to import auth routes...");
+  const authRoutes = require("./src/routes/user.routes");
+  console.log("✅ Auth routes imported successfully");
+
+  // Mount auth routes
+  app.use("/api/auth", authRoutes);
+  console.log("✅ Auth routes mounted at /api/auth");
+} catch (error) {
+  console.error("❌ Error importing or mounting auth routes:", error.message);
+  console.error("Stack trace:", error.stack);
+}
+
+// ✅ Get all users route
 app.get("/api/users", async (req, res) => {
   try {
     const User = require("./src/models/User");
@@ -75,19 +88,12 @@ app.get("/api/users", async (req, res) => {
   }
 });
 
-// ✅ Serve Angular frontend (in production)
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "dist/your-angular-app")));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "dist/your-angular-app/index.html"));
-  });
-}
-
 // ✅ 404 handler
-app.use("*", (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: "Route not found",
+    requestedPath: req.originalUrl,
   });
 });
 
@@ -106,3 +112,6 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/`);
 });
+
+// Export for testing
+module.exports = app;
