@@ -5,10 +5,7 @@ const User = require("./src/models/User");
 
 const MONGO_URI = process.env.MONGO_URI;
 
-mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+mongoose.connect(uri);
 
 const db = mongoose.connection;
 
