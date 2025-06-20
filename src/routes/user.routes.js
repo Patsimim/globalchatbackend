@@ -30,19 +30,19 @@ try {
 // Define routes with explicit paths (no parameters that could cause issues)
 console.log("🔗 Setting up routes...");
 
-// POST /api/auth/register
+// Register
 router.post("/register", (req, res, next) => {
   console.log("📝 Register endpoint hit");
   register(req, res, next);
 });
 
-// POST /api/auth/login
+// Login
 router.post("/login", (req, res, next) => {
   console.log("🔑 Login endpoint hit");
   login(req, res, next);
 });
 
-// GET /api/auth/profile (protected route)
+// Profile
 router.get("/profile", authenticateToken, (req, res, next) => {
   console.log("👤 Profile endpoint hit");
   getProfile(req, res, next);
