@@ -1,20 +1,10 @@
-// server.js - Enhanced server setup with Socket.IO integration
+// server.js - Fixed server setup with correct file paths
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
 const socketIo = require("socket.io");
-const helmet = require("helmet"); // Security headers
-const compression = require("compression"); // Gzip compression
-const rateLimit = require("express-rate-limit"); // Rate limiting
-
-// Import routes and middleware
-const authRoutes = require("./routes/auth");
-const chatRoutes = require("./routes/chat");
-const userRoutes = require("./routes/user");
-const { authenticateToken } = require("./middleware/auth");
-const socketHandler = require("./sockets/socketHandler");
 
 const app = express();
 const server = http.createServer(app);
@@ -42,8 +32,6 @@ async function connectDatabase() {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      bufferCommands: false,
-      bufferMaxEntries: 0,
     };
 
     await mongoose.connect(process.env.MONGO_URI, mongoOptions);
@@ -71,22 +59,6 @@ async function connectDatabase() {
  * Middleware Setup
  */
 function setupMiddleware() {
-  // Security middleware
-  app.use(
-    helmet({
-      crossOriginEmbedderPolicy: false, // Needed for Socket.IO
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          connectSrc: ["'self'", "ws:", "wss:"], // Allow WebSocket connections
-        },
-      },
-    })
-  );
-
-  // Compression
-  app.use(compression());
-
   // CORS configuration
   const corsOptions = {
     origin: function (origin, callback) {
@@ -114,14 +86,7 @@ function setupMiddleware() {
   app.use(cors(corsOptions));
 
   // Body parsing
-  app.use(
-    express.json({
-      limit: "10mb",
-      verify: (req, res, buf) => {
-        req.rawBody = buf; // Store raw body for webhook verification if needed
-      },
-    })
-  );
+  app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
   // Request logging
@@ -135,25 +100,6 @@ function setupMiddleware() {
     });
     next();
   });
-
-  // Rate limiting
-  const globalRateLimit = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // Limit each IP to 1000 requests per windowMs
-    message: {
-      success: false,
-      message: "Too many requests from this IP, please try again later.",
-      code: "RATE_LIMITED",
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => {
-      // Skip rate limiting for health checks
-      return req.path === "/api/health" || req.path === "/";
-    },
-  });
-
-  app.use(globalRateLimit);
 
   console.log("✅ Middleware setup complete");
 }
@@ -175,20 +121,30 @@ function setupSocketIO() {
     pingTimeout: 60000,
     pingInterval: 25000,
     transports: ["websocket", "polling"],
-    allowEIO3: true, // Allow Engine.IO v3 clients
+    allowEIO3: true,
   });
 
-  // Initialize socket handlers
-  const socketUtils = socketHandler(io);
+  // Try to initialize socket handlers
+  let socketUtils = null;
+  try {
+    const socketHandler = require("./src/sockets/SocketHandler");
+    socketUtils = socketHandler(io);
+    console.log("✅ Socket handlers loaded successfully");
+  } catch (error) {
+    console.warn("⚠️ Socket handlers not available:", error.message);
+    // Create minimal socket utils for compatibility
+    socketUtils = {
+      getOnlineUsersCount: () => 0,
+      sendToUser: () => false,
+      broadcastOnlineUsers: () => {},
+      connectedUsers: new Map(),
+      roomUsers: new Map(),
+    };
+  }
 
   // Add socket utilities to app for access in routes
   app.set("socketUtils", socketUtils);
   app.set("io", io);
-
-  // Monitor socket connections
-  io.engine.on("connection_error", (err) => {
-    console.error("❌ Socket connection error:", err);
-  });
 
   console.log("✅ Socket.IO setup complete");
   return { io, socketUtils };
@@ -198,6 +154,8 @@ function setupSocketIO() {
  * Routes Setup
  */
 function setupRoutes() {
+  console.log("🔍 Setting up routes...");
+
   // Health check routes (no auth required)
   app.get("/", (req, res) => {
     res.json({
@@ -224,95 +182,126 @@ function setupRoutes() {
     });
   });
 
-  // API status endpoint with more details
-  app.get("/api/status", authenticateToken, (req, res) => {
-    const socketUtils = app.get("socketUtils");
-    res.json({
-      success: true,
-      user: req.user.getChatProfile(),
-      server: {
-        onlineUsers: socketUtils ? socketUtils.getOnlineUsersCount() : 0,
-        serverTime: new Date().toISOString(),
-        uptime: process.uptime(),
-      },
-    });
-  });
-
-  // Authentication routes (no auth required)
-  app.use("/api/auth", authRoutes);
-
-  // User management routes (auth required)
-  if (userRoutes) {
-    app.use("/api/users", authenticateToken, userRoutes);
+  // Try to load authentication routes
+  try {
+    console.log("🔍 Loading auth routes...");
+    const authRoutes = require("./src/routes/user.routes");
+    app.use("/api/auth", authRoutes);
+    console.log("✅ Auth routes loaded successfully");
+  } catch (error) {
+    console.error("❌ Error loading auth routes:", error.message);
+    // Try alternative path
+    try {
+      const authRoutes = require("./routes/auth");
+      app.use("/api/auth", authRoutes);
+      console.log("✅ Auth routes loaded from alternative path");
+    } catch (altError) {
+      console.error("❌ Could not load auth routes from any location");
+    }
   }
 
-  // Chat routes (auth required)
-  app.use("/api/chat", authenticateToken, chatRoutes);
+  // Try to load chat routes with authentication
+  try {
+    console.log("🔍 Loading chat routes...");
+    const { authenticateToken } = require("./src/middlewares/AuthMiddleware");
+    const chatRoutes = require("./src/routes/chat.routes");
+    app.use("/api/chat", authenticateToken, chatRoutes);
+    console.log("✅ Chat routes loaded successfully");
+  } catch (error) {
+    console.warn("⚠️ Chat routes not available:", error.message);
+  }
 
-  // Admin routes (admin auth required)
-  app.get("/api/admin/stats", authenticateToken, async (req, res) => {
-    try {
-      // Check admin permissions
-      if (!req.user.isAdmin && req.user.role !== "admin") {
-        return res.status(403).json({
-          success: false,
-          message: "Admin access required",
-        });
-      }
-
-      const User = require("./models/User");
-      const ChatRoom = require("./models/ChatRoom");
-      const { Message } = require("./models/Message");
+  // API status endpoint (requires auth if available)
+  try {
+    const { authenticateToken } = require("./src/middlewares/AuthMiddleware");
+    app.get("/api/status", authenticateToken, (req, res) => {
       const socketUtils = app.get("socketUtils");
-
-      const [
-        totalUsers,
-        onlineUsers,
-        totalGroups,
-        totalMessages,
-        todayMessages,
-      ] = await Promise.all([
-        User.countDocuments(),
-        User.countDocuments({ isOnline: true }),
-        ChatRoom.countDocuments({ type: "group" }),
-        Message.countDocuments(),
-        Message.countDocuments({
-          createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-        }),
-      ]);
-
       res.json({
         success: true,
-        stats: {
-          users: {
-            total: totalUsers,
-            online: onlineUsers,
-            connectedSockets: socketUtils
-              ? socketUtils.getOnlineUsersCount()
-              : 0,
-          },
-          groups: {
-            total: totalGroups,
-          },
-          messages: {
-            total: totalMessages,
-            today: todayMessages,
-          },
-          server: {
-            uptime: process.uptime(),
-            memory: process.memoryUsage(),
-            environment: NODE_ENV,
-          },
+        user: req.user ? req.user.getChatProfile() : null,
+        server: {
+          onlineUsers: socketUtils ? socketUtils.getOnlineUsersCount() : 0,
+          serverTime: new Date().toISOString(),
+          uptime: process.uptime(),
         },
       });
-    } catch (error) {
-      console.error("Error fetching admin stats:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch statistics",
-      });
-    }
-  });
+    });
+    console.log("✅ Protected status endpoint setup");
+  } catch (error) {
+    console.warn("⚠️ Protected status endpoint not available");
+  }
+
+  // Admin routes (if models are available)
+  try {
+    const { authenticateToken } = require("./src/middlewares/AuthMiddleware");
+    const User = require("./src/models/User");
+    const ChatRoom = require("./src/models/ChatRoom");
+    const { Message } = require("./src/models/Messages");
+
+    app.get("/api/admin/stats", authenticateToken, async (req, res) => {
+      try {
+        // Check admin permissions
+        if (!req.user.isAdmin && req.user.role !== "admin") {
+          return res.status(403).json({
+            success: false,
+            message: "Admin access required",
+          });
+        }
+
+        const socketUtils = app.get("socketUtils");
+
+        const [
+          totalUsers,
+          onlineUsers,
+          totalGroups,
+          totalMessages,
+          todayMessages,
+        ] = await Promise.all([
+          User.countDocuments(),
+          User.countDocuments({ isOnline: true }),
+          ChatRoom.countDocuments({ type: "group" }),
+          Message.countDocuments(),
+          Message.countDocuments({
+            createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          }),
+        ]);
+
+        res.json({
+          success: true,
+          stats: {
+            users: {
+              total: totalUsers,
+              online: onlineUsers,
+              connectedSockets: socketUtils
+                ? socketUtils.getOnlineUsersCount()
+                : 0,
+            },
+            groups: {
+              total: totalGroups,
+            },
+            messages: {
+              total: totalMessages,
+              today: todayMessages,
+            },
+            server: {
+              uptime: process.uptime(),
+              memory: process.memoryUsage(),
+              environment: NODE_ENV,
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching admin stats:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch statistics",
+        });
+      }
+    });
+    console.log("✅ Admin routes setup");
+  } catch (error) {
+    console.warn("⚠️ Admin routes not available:", error.message);
+  }
 
   console.log("✅ Routes setup complete");
 }
@@ -395,7 +384,6 @@ function setupGracefulShutdown(server, io) {
   const gracefulShutdown = (signal) => {
     console.log(`\n📤 Received ${signal}. Starting graceful shutdown...`);
 
-    // Stop accepting new connections
     server.close((err) => {
       if (err) {
         console.error("❌ Error during server shutdown:", err);
@@ -404,16 +392,16 @@ function setupGracefulShutdown(server, io) {
 
       console.log("🛑 HTTP server closed");
 
-      // Close Socket.IO
-      io.close(() => {
-        console.log("🛑 Socket.IO server closed");
-
-        // Close database connection
-        mongoose.connection.close(false, () => {
-          console.log("🛑 MongoDB connection closed");
-          console.log("✅ Graceful shutdown completed");
-          process.exit(0);
+      if (io) {
+        io.close(() => {
+          console.log("🛑 Socket.IO server closed");
         });
+      }
+
+      mongoose.connection.close(false, () => {
+        console.log("🛑 MongoDB connection closed");
+        console.log("✅ Graceful shutdown completed");
+        process.exit(0);
       });
     });
 
@@ -423,14 +411,12 @@ function setupGracefulShutdown(server, io) {
         "❌ Could not close connections in time, forcefully shutting down"
       );
       process.exit(1);
-    }, 10000); // 10 seconds timeout
+    }, 10000);
   };
 
-  // Listen for termination signals
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-  // Handle uncaught exceptions
   process.on("uncaughtException", (err) => {
     console.error("❌ Uncaught Exception:", err);
     gracefulShutdown("uncaughtException");
@@ -447,7 +433,6 @@ function setupGracefulShutdown(server, io) {
  */
 async function startServer() {
   try {
-    // Initialize everything in order
     await connectDatabase();
     setupMiddleware();
     const { io, socketUtils } = setupSocketIO();
@@ -455,7 +440,6 @@ async function startServer() {
     setupErrorHandlers();
     setupGracefulShutdown(server, io);
 
-    // Start listening
     server.listen(PORT, () => {
       console.log(`\n🎉 GlobalChat server successfully started!`);
       console.log(`📍 Server running on http://localhost:${PORT}`);

@@ -1,8 +1,8 @@
 // sockets/socketHandler.js - Enhanced version with better organization
-const { authenticateSocket } = require("../middleware/auth");
+const { authenticateSocket } = require("../middlewares/AuthMiddleware");
 const User = require("../models/User");
 const ChatRoom = require("../models/ChatRoom");
-const { Message } = require("../models/Message");
+const { Message } = require("../models/Messages");
 
 // Store connected users and their metadata
 const connectedUsers = new Map();
