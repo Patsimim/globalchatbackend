@@ -1,4 +1,4 @@
-// server.js - Final working version with Express 5.x compatible error handlers
+// server.js
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");

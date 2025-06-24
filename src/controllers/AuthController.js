@@ -1,8 +1,8 @@
-// src/controllers/AuthController.js - Modified to auto-generate username
+// src/controllers/AuthController.js
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const { generateToken } = require("../middlewares/AuthMiddleware"); // Use existing function
+const { generateToken } = require("../middlewares/AuthMiddleware");
 
 /**
  * Generate a unique username from first and last name
@@ -27,7 +27,7 @@ const generateUsername = async (firstName, lastName) => {
 };
 
 /**
- * Register a new user - UPDATED to auto-generate username
+ * Register a new user
  */
 const register = async (req, res) => {
   try {
@@ -59,7 +59,7 @@ const register = async (req, res) => {
       });
     }
 
-    // Email validation - Updated to match your User model regex
+    // Email validation
     const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({
@@ -101,11 +101,11 @@ const register = async (req, res) => {
       username: generatedUsername,
       email: email.toLowerCase().trim(),
       password: hashedPassword,
-      displayName: `${firstName.trim()} ${lastName.trim()}`, // Required field
+      displayName: `${firstName.trim()} ${lastName.trim()}`,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       country: country.trim(),
-      isOnline: true, // Set as online on registration
+      isOnline: true,
       lastSeen: new Date(),
       lastLogin: new Date(),
     });
@@ -115,7 +115,7 @@ const register = async (req, res) => {
     // Generate JWT token using middleware function
     const token = generateToken(user._id, { expiresIn: "24h" });
 
-    // Return success response (password excluded by model's toJSON transform)
+    // Return success response
     const userResponse = {
       id: user._id,
       username: user.username,
@@ -175,7 +175,7 @@ const register = async (req, res) => {
 };
 
 /**
- * Login user - FIXED to include password field
+ * Login user
  */
 const login = async (req, res) => {
   try {
@@ -207,7 +207,7 @@ const login = async (req, res) => {
       });
     }
 
-    // CRITICAL FIX: Find user by email and EXPLICITLY include password field
+    //Find user by email and include password field
     const user = await User.findOne({
       email: email.toLowerCase().trim(),
     }).select("+password"); // This + sign explicitly includes the password field
@@ -314,7 +314,7 @@ const login = async (req, res) => {
 };
 
 /**
- * Get user profile - UPDATED to work with User model
+ * Get user profile
  */
 const getProfile = async (req, res) => {
   try {
@@ -384,7 +384,7 @@ const getProfile = async (req, res) => {
 };
 
 /**
- * Logout user (optional - client-side can just delete token)
+ * Logout user
  */
 const logout = async (req, res) => {
   try {

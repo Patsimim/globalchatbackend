@@ -1,4 +1,4 @@
-// routes/chat.js - Fixed chat routes with clean parameter validation
+// routes/chat.js
 const express = require("express");
 const router = express.Router();
 const { body, query, param, validationResult } = require("express-validator");

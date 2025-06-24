@@ -1,4 +1,4 @@
-// sockets/socketHandler.js - Enhanced version with better organization
+// sockets/socketHandler.js
 const { authenticateSocket } = require("../middlewares/AuthMiddleware");
 const User = require("../models/User");
 const ChatRoom = require("../models/ChatRoom");

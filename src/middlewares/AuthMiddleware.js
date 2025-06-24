@@ -1,4 +1,4 @@
-// middleware/auth.js - Enhanced authentication middleware
+// middleware/auth.js
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 

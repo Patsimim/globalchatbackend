@@ -1,4 +1,4 @@
-// scripts/migrateUsers.js - Fix existing users using firstName + lastName
+// scripts/migrateUsers.js
 require("dotenv").config();
 
 const mongoose = require("mongoose");
