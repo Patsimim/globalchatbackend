@@ -3,9 +3,33 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const http = require("http");
+const socketIo = require("socket.io");
+const socketHandler = require("./src/sockets/SocketHandler");
 
 const app = express();
 const server = http.createServer(app);
+
+// Initialize Socket.IO
+const io = socketIo(server, {
+  cors: {
+    origin: [
+      "http://localhost:4200",
+      "http://localhost:3000",
+      "http://localhost:3001",
+      process.env.FRONTEND_URL,
+    ].filter(Boolean),
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  transports: ["websocket", "polling"],
+});
+
+// Initialize socket handler and get utilities
+const socketUtils = socketHandler(io);
+
+// Make socket utilities available to routes
+app.set("io", io);
+app.set("socketUtils", socketUtils);
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || "development";
@@ -293,6 +317,7 @@ async function startServer() {
       console.log(`🏥 Health: http://localhost:${PORT}/api/health`);
       console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/test`);
       console.log(`💬 Chat: http://localhost:${PORT}/api/chat/test`);
+      console.log(`🔌 WebSocket: http://localhost:${PORT}/socket.io/`);
       console.log(`🌍 Environment: ${NODE_ENV}`);
       console.log(`📊 PID: ${process.pid}`);
       console.log(

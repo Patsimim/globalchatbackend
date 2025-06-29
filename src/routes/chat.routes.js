@@ -909,4 +909,18 @@ router.get("/stats", async (req, res) => {
   }
 });
 
+router.get("/test", (req, res) => {
+  res.json({
+    success: true,
+    message: "Chat routes are working!",
+    user: {
+      id: req.user.id,
+      firstName: req.user.firstName,
+      lastName: req.user.lastName,
+      email: req.user.email,
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 module.exports = router;
