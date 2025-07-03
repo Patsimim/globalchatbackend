@@ -1,0 +1,30 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Runtime
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# IDE/editor folders (optional)
+.vscode/
+.idea/
+
+# Dependency lock (optional if using yarn)
+yarn.lock
+
+# Optional: Ignore database or seed files if sensitive
+seed.js
